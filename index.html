@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>CyberCore IDE v5.0 - Ultimate Architect</title>
+    <!-- Библиотека для сохранения в PNG -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap');
+
+        :root {
+            --cyan: #00f2ff;
+            --glass: rgba(5, 12, 20, 0.95);
+            --border: rgba(0, 242, 255, 0.2);
+        }
+
+        body {
+            background: #010204; color: #fff; font-family: 'Share Tech Mono', monospace;
+            margin: 0; display: flex; height: 100vh; overflow: hidden;
+        }
+
+        /* Анимированный фон (сетка CyberCore) */
+        #bg {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(0, 242, 255, 0.03) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(0, 242, 255, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px; z-index: -1;
+        }
+
+        /* Панели */
+        .panel-left { width: 200px; background: var(--glass); border-right: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; }
+        .panel-right { width: 420px; background: var(--glass); border-left: 1px solid var(--border); padding: 25px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; }
+        .viewport { flex-grow: 1; display: flex; align-items: center; justify-content: center; position: relative; }
+
+        h1 { font-family: 'Orbitron'; color: var(--cyan); text-shadow: 0 0 10px var(--cyan); font-size: 0.9rem; margin: 0; text-transform: uppercase; }
+        .log { font-size: 0.7rem; color: var(--cyan); opacity: 0.5; margin-top: 10px; line-height: 1.4; }
+
+        .group { display: flex; flex-direction: column; gap: 4px; }
+        label { font-size: 0.6rem; color: var(--cyan); text-transform: uppercase; opacity: 0.8; }
+
+        input, textarea {
+            background: rgba(0,0,0,0.8); border: 1px solid var(--border);
+            color: #fff; padding: 10px; font-family: inherit; font-size: 0.85rem; outline: none;
+        }
+        input:focus { border-color: var(--cyan); }
+
+        .btn {
+            background: transparent; border: 1px solid var(--cyan); color: var(--cyan);
+            padding: 12px; cursor: pointer; font-family: 'Orbitron'; font-size: 0.7rem; transition: 0.3s;
+        }
+        .btn:hover { background: var(--cyan); color: #000; box-shadow: 0 0 15px var(--cyan); }
+        .btn-save { border-color: #ff9d00; color: #ff9d00; margin-top: 10px; }
+
+        /* --- КАРТА (Макет) --- */
+        #card-container {
+            width: 420px; height: 610px; position: relative; 
+            background: #000; overflow: hidden; /* Обрезка по краям карты */
+        }
+
+        /* Слой 1: Твоя рамка из assets/ */
+        #card-template {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10; pointer-events: none;
+        }
+
+        /* Слой 2: Арт монстра (с твоей Python-обрезкой) */
+        .art-box {
+            position: absolute; 
+            top: 106px; left: 46px; /* Позиция окна арта на рамке */
+            width: 325px; height: 326px;
+            z-index: 5; overflow: hidden; background: #111;
+        }
+        #img-out {
+            position: absolute;
+            /* Реализация твоей обрезки: left: 12%, top: 18.5%, right: 87%, bottom: 70% */
+            width: 133.3%;  /* Расчет: 1 / (0.87 - 0.12) */
+            height: 194.1%; /* Расчет: 1 / (0.70 - 0.185) */
+            left: -16%;     /* Расчет: -12% от ширины с учетом скейла */
+            top: -35.9%;    /* Расчет: -18.5% от высоты с учетом скейла */
+            object-fit: fill;
+        }
+
+        /* Слой 3: Тексты и иконки */
+        .card-ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 15; pointer-events: none; }
+        
+        .c-header { display: flex; justify-content: space-between; align-items: center; padding: 22px 28px 0; }
+        #title-out { font-size: 24px; font-weight: bold; color: #000; text-shadow: 1px 1px 0 #fff; font-family: 'serif'; }
+        #attr-out { width: 38px; height: 38px; object-fit: contain; }
+
+        .c-stars { display: flex; flex-direction: row-reverse; height: 30px; padding: 0 35px; gap: 1px; margin-top: 2px; }
+        .star-img { width: 21px; height: 21px; object-fit: contain; }
+
+        .c-desc-block { position: absolute; top: 445px; left: 35px; right: 35px; bottom: 45px; padding: 8px; color: #111; font-size: 11px; line-height: 1.1; }
+        #type-out { font-weight: bold; font-size: 12px; margin-bottom: 3px; border-bottom: 1px solid rgba(0,0,0,0.2); }
+        #stats-out { position: absolute; bottom: 8px; right: 12px; font-weight: bold; font-size: 15px; }
+
+    </style>
+</head>
+<body>
+
+<div id="bg"></div>
+
+<div class="panel-left">
+    <h1>CyberCore</h1>
+    <div class="log" id="log-box">> STATUS: ONLINE<br>> GPU: RTX 3070<br>> READY TO BUILD</div>
+</div>
+
+<div class="viewport">
+    <div id="card-container">
+        <!-- Твой макет рамки -->
+        <img id="card-template" src="assets/monster.png">
+        
+        <div class="art-box">
+            <img id="img-out" src="">
+        </div>
+
+        <div class="card-ui">
+            <div class="c-header">
+                <div id="title-out">CARD NAME</div>
+                <img id="attr-out" src="assets/light.png">
+            </div>
+            <div class="c-stars" id="stars-out"></div>
+            
+            <div class="c-desc-block">
+                <div id="type-out">[Type / Subtype]</div>
+                <div id="text-out">Effect text...</div>
+                <div id="stats-out">ATK/0 DEF/0</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="panel-right">
+    <h1>ARCHITECT CONTROLS</h1>
+    
+    <div class="group">
+        <label>Database Search (ENG Name)</label>
+        <div style="display:flex; gap:5px">
+            <input type="text" id="search" placeholder="Blue-Eyes..." style="flex-grow:1" onchange="runAuto()">
+            <button class="btn" onclick="runAuto()">FETCH</button>
+        </div>
+    </div>
+
+    <div class="group">
+        <label>Название на карте</label>
+        <input type="text" id="inTitle" oninput="sync()">
+    </div>
+
+    <div class="group">
+        <label>Тип и Подтипы</label>
+        <input type="text" id="inType" oninput="sync()">
+    </div>
+
+    <div class="group">
+        <label>Описание (ENG оригинал вставлен)</label>
+        <textarea id="inDesc" rows="6" oninput="sync()" placeholder="Твой перевод..."></textarea>
+    </div>
+
+    <div style="display: flex; gap: 10px;">
+        <div class="group"><label>ATK</label><input type="text" id="inAtk" oninput="sync()" style="width:75px"></div>
+        <div class="group"><label>DEF</label><input type="text" id="inDef" oninput="sync()" style="width:75px"></div>
+        <div class="group"><label>LVL</label><input type="number" id="inLv" oninput="sync()" style="width:55px"></div>
+    </div>
+
+    <button class="btn btn-save" onclick="savePNG()">SAVE AS PNG</button>
+</div>
+
+<script>
+    const logBox = document.getElementById('log-box');
+    function addLog(m) { logBox.innerHTML += `<br>> ${m}`; logBox.scrollTop = logBox.scrollHeight; }
+
+    async function runAuto() {
+        const q = document.getElementById('search').value;
+        if(!q) return;
+        addLog(`REQUESTING: ${q.toUpperCase()}`);
+
+        try {
+            const r = await fetch(`https://db.ygoprodeck.com/api/v7/cardinfo.php?name=${encodeURIComponent(q)}`);
+            const d = await r.json();
+            const c = d.data[0];
+
+            // Заполнение полей данными из базы
+            document.getElementById('inTitle').value = c.name;
+            document.getElementById('inType').value = `[${c.race} / ${c.type.replace(' Monster', '')}]`;
+            document.getElementById('inAtk').value = c.atk || 0;
+            document.getElementById('inDef').value = c.def || 0;
+            document.getElementById('inLv').value = c.level || 0;
+            document.getElementById('inDesc').value = c.desc;
+            document.getElementById('img-out').src = c.card_images[0].image_url;
+
+            // Логика выбора твоих макетов
+            const tmpl = document.getElementById('card-template');
+            if (c.type.includes('Spell')) tmpl.src = 'assets/spell.png';
+            else if (c.type.includes('Trap')) tmpl.src = 'assets/trap.png';
+            else tmpl.src = 'assets/monster.png';
+
+            // Твоя иконка атрибута
+            document.getElementById('attr-out').src = `assets/${c.attribute.toLowerCase()}.png`;
+
+            sync();
+            addLog("DATA LINK ESTABLISHED");
+        } catch (e) { addLog("CRITICAL ERROR: DATA NOT FOUND"); }
+    }
+
+    function sync() {
+        document.getElementById('title-out').innerText = document.getElementById('inTitle').value.toUpperCase();
+        document.getElementById('type-out').innerText = document.getElementById('inType').value;
+        document.getElementById('text-out').innerText = document.getElementById('inDesc').value;
+        document.getElementById('stats-out').innerText = `ATK/${document.getElementById('inAtk').value} DEF/${document.getElementById('inDef').value}`;
+        
+        // Рендер твоих иконок уровня из assets/star.png
+        const lv = document.getElementById('inLv').value;
+        const box = document.getElementById('stars-out');
+        box.innerHTML = '';
+        for(let i=0; i<lv; i++) {
+            box.innerHTML += `<img src="assets/star.png" class="star-img">`;
+        }
+    }
+
+    function savePNG() {
+        addLog("EXPORTING PNG...");
+        html2canvas(document.querySelector("#card-container"), {
+            useCORS: true,
+            scale: 2 // Высокое разрешение для печати на Epson L805
+        }).then(canvas => {
+            const a = document.createElement('a');
+            a.download = `ygo_card_${Date.now()}.png`;
+            a.href = canvas.toDataURL("image/png");
+            a.click();
+            addLog("EXPORT SUCCESSFUL");
+        });
+    }
+
+    // Инициализация при загрузке
+    sync();
+</script>
+</body>
+</html>
